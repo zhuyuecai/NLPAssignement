@@ -36,22 +36,33 @@ def getCorpus(neg, pos):
 
 
 # preprocessing
-def preprocess_entry(entry):
-    entry = entry.lower()
+def preprocess_entry(entry, steps=("lower", "lemmatize", "stopwords")):
+    if "lower" in steps:
+        entry = entry.lower()
     entry = word_tokenize(entry)
-    tag_map = defaultdict(lambda: wn.NOUN)
-    tag_map["J"] = wn.ADJ
-    tag_map["V"] = wn.VERB
-    tag_map["R"] = wn.ADV
-    # Initializing WordNetLemmatizer()
-    word_Lemmatized = WordNetLemmatizer()
-    # pos_tag function below will provide the 'tag'
-    # i.e if the word is Noun(N) or Verb(V) or something else.
-    Final_words = [
-        word_Lemmatized.lemmatize(word, tag_map[tag[0]])
-        for word, tag in pos_tag(entry)
-        if word not in stopwords.words("english") and word.isalpha()
-    ]
+
+    if "stopwords" in steps:
+        entry = [
+            word
+            for word in entry
+            if word not in stopwords.words("english") and word.isalpha()
+        ]
+
+    if "lemmatize" in steps:
+        tag_map = defaultdict(lambda: wn.NOUN)
+        tag_map["J"] = wn.ADJ
+        tag_map["V"] = wn.VERB
+        tag_map["R"] = wn.ADV
+        # Initializing WordNetLemmatizer()
+        word_Lemmatized = WordNetLemmatizer()
+        # pos_tag function below will provide the 'tag'
+        # i.e if the word is Noun(N) or Verb(V) or something else.
+        Final_words = [
+            word_Lemmatized.lemmatize(word, tag_map[tag[0]])
+            for word, tag in pos_tag(entry)
+        ]
+    else:
+        Final_words = entry
     return str(Final_words)
 
 
@@ -132,9 +143,24 @@ if __name__ == "__main__":
     print(corpus["text"].shape)
     print(corpus["label"].shape)
     # preprocessing
-    corpus["final_text"] = [preprocess_entry(entry) for entry in corpus["text"]]
+    corpus["final_text"] = [
+        preprocess_entry(entry, steps=("lower", "lemmatize", "stopwords"))
+        for entry in corpus["text"]
+    ]
     vectorizer = getVectorizer(corpus)
     pipeline(corpus, vectorizer, test_size=0.2, classifier="NB")
     pipeline(corpus, vectorizer, test_size=0.2, classifier="SVM")
     pipeline(corpus, vectorizer, test_size=0.2, classifier="linearSVC")
-    baseline_predictor(corpus, test_size=0.2) 
+    baseline_predictor(corpus, test_size=0.2)
+
+    print("include stopwords")
+    # preprocessing
+    corpus["final_text"] = [
+        preprocess_entry(entry, steps=("lower", "lemmatize"))
+        for entry in corpus["text"]
+    ]
+    vectorizer = getVectorizer(corpus)
+    pipeline(corpus, vectorizer, test_size=0.2, classifier="NB")
+    pipeline(corpus, vectorizer, test_size=0.2, classifier="SVM")
+    pipeline(corpus, vectorizer, test_size=0.2, classifier="linearSVC")
+    baseline_predictor(corpus, test_size=0.2)
