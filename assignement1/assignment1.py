@@ -9,10 +9,65 @@ from collections import defaultdict
 from nltk.corpus import wordnet as wn
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn import model_selection, naive_bayes, svm
-from sklearn.svm import LinearSVC
-from sklearn.metrics import accuracy_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, confusion_matrix
+from sklearn.utils.multiclass import unique_labels
+import matplotlib.pyplot as plt
 
 np.random.seed(500)
+
+def plot_confusion_matrix(y_true, y_pred, classes,
+                          normalize=False,
+                          title=None,
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
+
+    # Compute confusion matrix
+    cm = confusion_matrix(y_true, y_pred)
+    # Only use the labels that appear in the data
+    #classes = classes[unique_labels(y_true, y_pred)]
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    print(cm)
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           # ... and label them with the respective list entries
+           #xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
+
+    # Rotate the tick labels and set their alignment.
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    plt.savefig('%s.pdf'%(title))
+    return ax
 
 
 def getData(file_path):
@@ -102,9 +157,9 @@ def baseline_predictor(corpus, test_size=0.3):
     )
 
 
-def pipeline(corpus, vectorizer, test_size=0.3, classifier="NB"):
-    cls_options = ("NB", "SVM", "linearSVC")
-    output_cls = {"NB": "Naive Bayes", "SVM": "SVM", "linearSVC": "linearSVC"}
+def pipeline(corpus, vectorizer, test_size=0.3, classifier="NB", title=None):
+    cls_options = ("NB", "SVM", "linearSVC", "logistic")
+    output_cls = {"NB": "Naive Bayes", "SVM": "SVM",  "logistic": "logistic regression"}
     # split test and training set
     Train_X, Test_X, Train_Y, Test_Y = model_selection.train_test_split(
         corpus["final_text"], corpus["label"], test_size=test_size
@@ -119,8 +174,8 @@ def pipeline(corpus, vectorizer, test_size=0.3, classifier="NB"):
         cls = naive_bayes.MultinomialNB()
     elif classifier == cls_options[1]:
         cls = svm.SVC(C=1.0, kernel="linear", degree=3, gamma="auto")
-    elif classifier == cls_options[2]:
-        cls = LinearSVC()
+    elif classifier == cls_options[3]:
+        cls = LogisticRegression()
     else:
         print("input classifier not supported")
         exit()
@@ -128,11 +183,17 @@ def pipeline(corpus, vectorizer, test_size=0.3, classifier="NB"):
     # predict the labels on validation dataset
     predictions = cls.predict(Test_X_vec)
     # Use accuracy_score function to get the accuracy
+    final_accuracy = accuracy_score(predictions, Test_Y) * 100
     print(
         output_cls[classifier],
         "Accuracy Score -> ",
-        accuracy_score(predictions, Test_Y) * 100,
+        final_accuracy,
     )
+    if title:
+        plot_confusion_matrix(predictions, Test_Y, classes=("neg","pos"), title="output_cls[classifier] " + title)
+    else:
+        plot_confusion_matrix(predictions, Test_Y, classes=("neg","pos"), title="output_cls[classifier] ")
+    return final_accuracy
 
 
 if __name__ == "__main__":
@@ -148,9 +209,9 @@ if __name__ == "__main__":
         for entry in corpus["text"]
     ]
     vectorizer = getVectorizer(corpus)
-    pipeline(corpus, vectorizer, test_size=0.2, classifier="NB")
+    pipeline(corpus, vectorizer, test_size=0.2, classifier="NB", title="all steps")
     pipeline(corpus, vectorizer, test_size=0.2, classifier="SVM")
-    pipeline(corpus, vectorizer, test_size=0.2, classifier="linearSVC")
+    pipeline(corpus, vectorizer, test_size=0.2, classifier="logistic")
     baseline_predictor(corpus, test_size=0.2)
 
     print("include stopwords")
@@ -162,5 +223,6 @@ if __name__ == "__main__":
     vectorizer = getVectorizer(corpus)
     pipeline(corpus, vectorizer, test_size=0.2, classifier="NB")
     pipeline(corpus, vectorizer, test_size=0.2, classifier="SVM")
-    pipeline(corpus, vectorizer, test_size=0.2, classifier="linearSVC")
+    pipeline(corpus, vectorizer, test_size=0.2, classifier="logistic")
     baseline_predictor(corpus, test_size=0.2)
+    plt.show()
